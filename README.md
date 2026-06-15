@@ -1,5 +1,6 @@
 # WiGLE SIGINT Toolkit
 
+[![build-web](https://github.com/administrator279/wigle-sigint/actions/workflows/build-web.yml/badge.svg)](https://github.com/administrator279/wigle-sigint/actions/workflows/build-web.yml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Python 3.7+](https://img.shields.io/badge/python-3.7%2B-blue.svg)
 ![Dependencies: none](https://img.shields.io/badge/dependencies-none%20(stdlib)-success.svg)
