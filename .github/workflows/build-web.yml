@@ -1,0 +1,49 @@
+name: build-web
+
+# Rebuild the self-contained browser app (wigle_web.html) whenever the Python
+# sources change, so the inlined bundle never drifts from the modules. Also
+# compile-checks every script. Runs on pushes to main that touch the .py files,
+# or manually via the Actions tab.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wigle_*.py'
+      - 'build_web.py'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-web
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compile-check all modules
+        run: python -m py_compile wigle_*.py build_web.py
+
+      - name: Rebuild wigle_web.html
+        run: python build_web.py
+
+      - name: Commit if the bundle changed
+        run: |
+          if git diff --quiet -- wigle_web.html; then
+            echo "wigle_web.html already up to date."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add wigle_web.html
+            git commit -m "ci: rebuild wigle_web.html [skip ci]"
+            git push
+          fi
