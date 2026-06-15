@@ -12,8 +12,13 @@ node_modules/
 # Generated analysis outputs (regenerate from a capture; don't track)
 *.report.html
 report.html
-survey.*
-wigle_map.*
+survey.geojson
+survey.kml
+survey.html
+# NOTE: only the generated wigle_map.* OUTPUTS — never the wigle_map.py source.
+wigle_map.geojson
+wigle_map.kml
+wigle_map.html
 WigleWifi_*.html
 WigleWifi_*.geojson
 WigleWifi_*.kml
