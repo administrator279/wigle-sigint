@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+
+# npm — only used to regenerate oui.json; the JSON itself IS committed
+node_modules/
+
+# Capture data — NEVER commit (privacy / OPSEC: a WiGLE CSV pinpoints where you were)
+*.csv
+*.csv.gz
+
+# Generated analysis outputs (regenerate from a capture; don't track)
+*.report.html
+report.html
+survey.*
+wigle_map.*
+WigleWifi_*.html
+WigleWifi_*.geojson
+WigleWifi_*.kml
+*.geojson
+*.kml
+*.db
+out.json
+*_out.json
