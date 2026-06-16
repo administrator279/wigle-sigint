@@ -131,12 +131,16 @@ def main():
 
     files = {}
     for m in MODULES:
-        src = open(os.path.join(HERE, m), "rb").read()
+        # Normalise CRLF -> LF so the base64 (hence the whole bundle) is identical
+        # whether built on a CRLF (Windows) or LF (Linux/CI) checkout.
+        src = open(os.path.join(HERE, m), "rb").read().replace(b"\r\n", b"\n")
         files[m] = base64.b64encode(src).decode("ascii")
     import json
     page = (PAGE.replace("__PYFILES__", json.dumps(files))
                 .replace("__PYODIDE__", a.pyodide))
-    open(a.out, "w", encoding="utf-8").write(page)
+    # newline="" + explicit \n keeps the output LF on every platform.
+    with open(a.out, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(page)
     kb = len(page) // 1024
     print(f"[+] wrote {a.out} ({kb} KB, {len(files)} modules inlined)")
     print("    open it in a browser; first load fetches Pyodide from the CDN.")

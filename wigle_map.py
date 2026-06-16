@@ -174,13 +174,14 @@ def main():
     ap.add_argument("--out", default="wigle_map")
     ap.add_argument("--types", default="WIFI,BLE,BT,LTE")
     ap.add_argument("--min-rssi", type=int, default=-95)
-    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true", help="don't auto-load exclude.txt")
     a = ap.parse_args()
 
     oui = W.load_oui(a.oui)
     _, rows = W.read_wigle(a.csv)
-    if a.exclude:
-        ex = W.load_exclude(a.exclude)
+    ex, _ex_src = W.resolve_exclude(a.exclude, a.no_exclude)
+    if ex:
         rows = [r for r in rows if r["MAC"].lower() not in ex]
     types = tuple(t.strip().upper() for t in a.types.split(","))
     pts = best_points(rows, oui, types, a.min_rssi)

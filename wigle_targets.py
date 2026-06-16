@@ -131,13 +131,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv")
     ap.add_argument("--oui", default="oui.json")
-    ap.add_argument("--exclude")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true", help="don't auto-load exclude.txt")
     ap.add_argument("--out", default="targets.csv")
     a = ap.parse_args()
 
     oui = W.load_oui(a.oui)
     _, rows = W.read_wigle(a.csv)
-    exclude = W.load_exclude(a.exclude) if a.exclude else set()
+    exclude, _ex_src = W.resolve_exclude(a.exclude, a.no_exclude)
     targets = build(rows, oui, exclude)
     seos, wep = physical_recon(rows)
 

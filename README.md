@@ -42,8 +42,10 @@ self-contained HTML report — **with no third-party dependencies**.
 | `wigle.py brief` | Styled report, `--mode recon` (teardown) or `--mode threat` (red/blue) |
 | `wigle.py all` | report + map + db-ingest in one command |
 
-Most tools accept `--exclude exclude.txt` to drop your home-base/own gear (built by
-`homebase`). `wigle_common.py` holds shared helpers; `build_web.py` regenerates the
+Most tools **auto-load a repo-local `exclude.txt`** (built by `homebase`) to drop
+your home-base/own gear by default — pass `--exclude FILE` to point elsewhere, or
+`--no-exclude` to keep everything. `exclude.txt` is gitignored (it lists your own
+MACs). `wigle_common.py` holds shared helpers; `build_web.py` regenerates the
 browser app.
 
 ### Counter-surveillance workflow

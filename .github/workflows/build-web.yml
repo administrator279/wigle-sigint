@@ -1,13 +1,17 @@
 name: build-web
 
-# Rebuild the self-contained browser app (wigle_web.html) whenever the Python
-# sources change, so the inlined bundle never drifts from the modules. Also
-# compile-checks every script. Runs on pushes to main that touch the .py files,
-# or manually via the Actions tab.
+# Keep the in-browser bundle (wigle_web.html) in sync with the Python sources and
+# compile-check every script. On push to main: rebuild and auto-commit the bundle
+# if it drifted. On pull requests: compile-check + fail if the committed bundle is
+# stale (so you remember to run build_web.py). Also runnable from the Actions tab.
 
 on:
   push:
     branches: [main]
+    paths:
+      - 'wigle_*.py'
+      - 'build_web.py'
+  pull_request:
     paths:
       - 'wigle_*.py'
       - 'build_web.py'
@@ -36,7 +40,19 @@ jobs:
       - name: Rebuild wigle_web.html
         run: python build_web.py
 
-      - name: Commit if the bundle changed
+      - name: PR — fail if the committed bundle is stale
+        if: github.event_name == 'pull_request'
+        run: |
+          if git diff --quiet -- wigle_web.html; then
+            echo "wigle_web.html is up to date."
+          else
+            echo "::error::wigle_web.html is stale — run 'python build_web.py' and commit it."
+            git --no-pager diff --stat -- wigle_web.html
+            exit 1
+          fi
+
+      - name: push — auto-commit the refreshed bundle
+        if: github.event_name != 'pull_request'
         run: |
           if git diff --quiet -- wigle_web.html; then
             echo "wigle_web.html already up to date."

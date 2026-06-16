@@ -125,13 +125,14 @@ def main():
     ap.add_argument("--min-bssids", type=int, default=1, help="only show devices emitting >= N BSSIDs")
     ap.add_argument("--include-ble", action="store_true", help="also cluster BLE/BT devices")
     ap.add_argument("--oui", default="oui.json")
-    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true", help="don't auto-load exclude.txt")
     args = ap.parse_args()
 
     oui = {} if args.no_vendor else W.load_oui(args.oui)
     _, rows = W.read_wigle(args.csv)
-    if args.exclude:
-        ex = W.load_exclude(args.exclude)
+    ex, _ex_src = W.resolve_exclude(args.exclude, args.no_exclude)
+    if ex:
         rows = [r for r in rows if r["MAC"].lower() not in ex]
     devs = cluster(rows, oui, args.window, not args.no_vendor)
     devs.sort(key=lambda d: (-d["n_bssids"], d["best_rssi"]))

@@ -334,9 +334,10 @@ def threat_sections(R, rows, oui, exclude, bases, classified, follow_cands, conv
     return "\n".join(out)
 
 
-def build(csv_path, oui_path="oui.json", mode="recon", exclude_path=None):
+def build(csv_path, oui_path="oui.json", mode="recon", exclude=None):
     oui = W.load_oui(oui_path)
-    exclude = W.load_exclude(exclude_path) if exclude_path else set()
+    if not isinstance(exclude, set):
+        exclude = W.load_exclude(exclude) if exclude else set()
     R = A.analyze(csv_path, oui_path)
     _, rows = W.read_wigle(csv_path)
     p = PALETTE[mode]
@@ -388,11 +389,13 @@ def main():
     ap.add_argument("csv")
     ap.add_argument("--oui", default="oui.json")
     ap.add_argument("--mode", choices=["recon", "threat"], default="recon")
-    ap.add_argument("--exclude")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true", help="don't auto-load exclude.txt")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
     out = a.out or f"report_{a.mode}.html"
-    doc = build(a.csv, a.oui, a.mode, a.exclude)
+    ex, _ex_src = W.resolve_exclude(a.exclude, a.no_exclude)
+    doc = build(a.csv, a.oui, a.mode, ex)
     open(out, "w", encoding="utf-8").write(doc)
     print(f"[+] wrote {out} ({len(doc)//1024} KB, mode={a.mode})")
 
