@@ -1,0 +1,6 @@
+# Normalise line endings so build_web.py produces identical bundles on Windows
+# and the Linux CI runner (the bundle base64-encodes module bytes — CRLF vs LF
+# would otherwise make the committed wigle_web.html look "stale" in CI).
+* text=auto eol=lf
+*.png binary
+oui.json binary
