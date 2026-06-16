@@ -177,14 +177,15 @@ def main():
     ap.add_argument("--min-trips", type=int, default=3)
     ap.add_argument("--min-sep-km", type=float, default=0.5)
     ap.add_argument("--locate-min", type=int, default=4, help="min fixes to trilaterate a MAC")
-    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true", help="don't auto-load exclude.txt")
     ap.add_argument("--json")
     a = ap.parse_args()
 
     oui = W.load_oui(a.oui)
     _, rows = W.read_wigle(a.csv)
-    if a.exclude:
-        ex = W.load_exclude(a.exclude)
+    ex, _ex_src = W.resolve_exclude(a.exclude, a.no_exclude)
+    if ex:
         rows = [r for r in rows if r["MAC"].lower() not in ex]
     trips, flagged = co_travel(rows, oui, a.gap, a.min_trips, a.min_sep_km)
     located = locate(rows, oui, ("WIFI",), a.locate_min)

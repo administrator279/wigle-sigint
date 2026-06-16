@@ -244,9 +244,11 @@ def fmt(R):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv"); ap.add_argument("--oui", default="oui.json"); ap.add_argument("--json")
-    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true", help="don't auto-load exclude.txt")
     a = ap.parse_args()
-    R = analyze(a.csv, a.oui, a.exclude)
+    ex, _ex_src = W.resolve_exclude(a.exclude, a.no_exclude)
+    R = analyze(a.csv, a.oui, ex)
     print(fmt(R))
     if a.json:
         json.dump(R, open(a.json, "w"), indent=2, default=str); print(f"\n[+] wrote {a.json}")

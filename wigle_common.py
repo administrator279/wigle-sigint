@@ -314,3 +314,27 @@ def load_exclude(path):
                 continue
             macs.add(line.split()[0].strip().lower())
     return macs
+
+def default_exclude_path():
+    """A persistent exclude.txt sitting next to the scripts, if present."""
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exclude.txt")
+    return p if os.path.exists(p) else None
+
+def resolve_exclude(explicit=None, no_exclude=False):
+    """
+    Decide the MAC exclusion set for a tool run:
+      --no-exclude  -> empty (opt out)
+      --exclude P   -> that file
+      neither       -> auto-find exclude.txt next to the scripts (if any)
+    Returns (set_of_macs, source_label) so callers can report what they used.
+    Mirrors how oui.json is auto-found, so a curated home-base list is dropped
+    everywhere by default without retyping --exclude each run.
+    """
+    if no_exclude:
+        return set(), "none (--no-exclude)"
+    if explicit:
+        return load_exclude(explicit), explicit
+    auto = default_exclude_path()
+    if auto:
+        return load_exclude(auto), os.path.basename(auto) + " (auto)"
+    return set(), "none"

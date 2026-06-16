@@ -164,7 +164,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv")
     ap.add_argument("--oui", default="oui.json")
-    ap.add_argument("--exclude")
+    ap.add_argument("--exclude", help="MAC exclusion list (default: auto-find exclude.txt)")
+    ap.add_argument("--no-exclude", action="store_true",
+                    help="exclude nothing (skip both exclude.txt and auto home-base)")
     ap.add_argument("--gap", type=int, default=20)
     ap.add_argument("--min-trips", type=int, default=3)
     ap.add_argument("--min-places", type=int, default=2)
@@ -180,12 +182,16 @@ def main():
 
     oui = W.load_oui(a.oui)
     _, rows = W.read_wigle(a.csv)
-    exclude = W.load_exclude(a.exclude) if a.exclude else None
+    ex_set, ex_src = W.resolve_exclude(a.exclude, a.no_exclude)
+    if a.no_exclude:
+        exclude, src = set(), "none (--no-exclude)"
+    elif ex_set:
+        exclude, src = ex_set, ex_src
+    else:
+        exclude, src = None, "auto home-base"   # nothing on disk -> compute it
     trips, n_excl, convoys, cands = follow(
         rows, oui, exclude, a.gap, a.min_trips, a.min_places, a.min_sep_km, a.include_near)
     cands = [c for c in cands if c["confidence"] >= a.min_conf]
-
-    src = f"--exclude {a.exclude}" if a.exclude else "auto home-base"
     print(f"# wigle_follow - {len(trips)} trips, {n_excl} MACs excluded ({src})")
     print(f"  {len(cands)} follow candidates, {len(convoys)} convoy group(s)\n")
     print(f"{'conf':>4}  {'mac':17} {'type':4} {'trips/places':12} {'rssi':>5}  name / reasons")
