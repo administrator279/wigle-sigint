@@ -43,10 +43,13 @@ WPS_WEAK = ("Ralink", "MediaTek", "Realtek", "Broadcom", "Arcadyan",
             "Sagemcom", "TP-Link", "D-Link", "Netgear", "Belkin", "Technicolor")
 
 
-def analyze(path, oui_path="oui.json"):
+def analyze(path, oui_path="oui.json", exclude=None):
     oui = W.load_oui(oui_path)
     def vendor(mac): return W.vendor_name(oui, mac)
     header, rows = W.read_wigle(path)
+    if exclude:
+        ex = exclude if isinstance(exclude, set) else W.load_exclude(exclude)
+        rows = [r for r in rows if r["MAC"].lower() not in ex]
     R = {"header": header}
 
     R["totals"] = {"obs": len(rows), "unique_macs": len({r["MAC"].lower() for r in rows})}
@@ -138,8 +141,13 @@ def analyze(path, oui_path="oui.json"):
 
     R["wep"] = [{"mac": r["MAC"], "ssid": r["SSID"], "ch": r["Channel"]}
                 for m, r in uw.items() if "WEP" in r["AuthMode"]]
-    R["seos_readers"] = sorted({(round(float(r["CurrentLatitude"]), 4), round(float(r["CurrentLongitude"]), 4))
-                                for r in rows if r["SSID"] == "Seos" and r["CurrentLatitude"] not in ("", "0")})
+    _seos = set()
+    for r in rows:
+        if r["SSID"] == "Seos" and W.has_fix(r):
+            la, lo = W.fpt(r["CurrentLatitude"]), W.fpt(r["CurrentLongitude"])
+            if la is not None and lo is not None:
+                _seos.add((round(la, 4), round(lo, 4)))
+    R["seos_readers"] = sorted(_seos)
 
     bss = collections.defaultdict(set)
     for r in uw.values():
@@ -167,8 +175,9 @@ def analyze(path, oui_path="oui.json"):
 
     # ---- OPSEC ----
     R["opsec_sensor"] = W.header_kv(header)
-    pts = [(float(r["CurrentLatitude"]), float(r["CurrentLongitude"]))
-           for r in rows if r["CurrentLatitude"] not in ("", "0")]
+    pts = [(W.fpt(r["CurrentLatitude"]), W.fpt(r["CurrentLongitude"]))
+           for r in rows if W.has_fix(r)]
+    pts = [(la, lo) for la, lo in pts if la is not None and lo is not None]
     if pts:
         dens = collections.Counter((round(la, 3), round(lo, 3)) for la, lo in pts)
         base = dens.most_common(1)[0]
@@ -235,8 +244,9 @@ def fmt(R):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv"); ap.add_argument("--oui", default="oui.json"); ap.add_argument("--json")
+    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
     a = ap.parse_args()
-    R = analyze(a.csv, a.oui)
+    R = analyze(a.csv, a.oui, a.exclude)
     print(fmt(R))
     if a.json:
         json.dump(R, open(a.json, "w"), indent=2, default=str); print(f"\n[+] wrote {a.json}")

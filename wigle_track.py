@@ -141,12 +141,14 @@ def locate(rows, oui, want_types=("WIFI",), min_pts=3):
     for r in rows:
         if r.get("Type") not in want_types or not W.has_fix(r):
             continue
-        rssi = r.get("RSSI", "")
-        if not (rssi and rssi.lstrip("-").isdigit()):
+        rv = W.parse_rssi(r.get("RSSI"))
+        if rv is None:
+            continue
+        la, lo = W.fpt(r["CurrentLatitude"]), W.fpt(r["CurrentLongitude"])
+        if la is None or lo is None:
             continue
         m = r["MAC"].lower()
-        sight[m].append((W.fpt(r["CurrentLatitude"]),
-                         W.fpt(r["CurrentLongitude"]), int(rssi)))
+        sight[m].append((la, lo, rv))
         if m not in label or W.is_named(r):
             label[m] = r
     located = []
@@ -175,11 +177,15 @@ def main():
     ap.add_argument("--min-trips", type=int, default=3)
     ap.add_argument("--min-sep-km", type=float, default=0.5)
     ap.add_argument("--locate-min", type=int, default=4, help="min fixes to trilaterate a MAC")
+    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
     ap.add_argument("--json")
     a = ap.parse_args()
 
     oui = W.load_oui(a.oui)
     _, rows = W.read_wigle(a.csv)
+    if a.exclude:
+        ex = W.load_exclude(a.exclude)
+        rows = [r for r in rows if r["MAC"].lower() not in ex]
     trips, flagged = co_travel(rows, oui, a.gap, a.min_trips, a.min_sep_km)
     located = locate(rows, oui, ("WIFI",), a.locate_min)
 

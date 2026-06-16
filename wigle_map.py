@@ -56,12 +56,15 @@ def best_points(rows, oui, types, min_rssi):
     for r in rows:
         if r.get("Type") not in types or not W.has_fix(r):
             continue
-        rssi = r.get("RSSI", "")
-        rv = int(rssi) if rssi and rssi.lstrip("-").isdigit() else -999
+        pr = W.parse_rssi(r.get("RSSI"))
+        rv = pr if pr is not None else -999
         if rv < min_rssi:
             continue
+        la, lo = W.fpt(r["CurrentLatitude"]), W.fpt(r["CurrentLongitude"])
+        if la is None or lo is None:
+            continue
         m = r["MAC"].lower()
-        sight[m].append((W.fpt(r["CurrentLatitude"]), W.fpt(r["CurrentLongitude"]), rv))
+        sight[m].append((la, lo, rv))
         if m not in label or W.is_named(r):
             label[m] = r
     out = []
@@ -171,10 +174,14 @@ def main():
     ap.add_argument("--out", default="wigle_map")
     ap.add_argument("--types", default="WIFI,BLE,BT,LTE")
     ap.add_argument("--min-rssi", type=int, default=-95)
+    ap.add_argument("--exclude", help="MAC exclusion list (e.g. home_exclude.txt) to drop")
     a = ap.parse_args()
 
     oui = W.load_oui(a.oui)
     _, rows = W.read_wigle(a.csv)
+    if a.exclude:
+        ex = W.load_exclude(a.exclude)
+        rows = [r for r in rows if r["MAC"].lower() not in ex]
     types = tuple(t.strip().upper() for t in a.types.split(","))
     pts = best_points(rows, oui, types, a.min_rssi)
     pts.sort(key=lambda p: p["cat"])

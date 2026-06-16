@@ -27,3 +27,17 @@ WigleWifi_*.kml
 *.db
 out.json
 *_out.json
+
+# Home-base / exclusion outputs (contain YOUR home device MACs + locations — never commit)
+exclude.txt
+*_exclude.txt
+*_devices.csv
+*_bases.json
+
+# Styled reports (wigle_report2 / brief) and pentest target lists
+recon.html
+threat.html
+report.html
+report_*.html
+brief_*.html
+targets.csv

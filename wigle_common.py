@@ -153,6 +153,22 @@ def has_fix(row):
     la = row.get("CurrentLatitude"); lo = row.get("CurrentLongitude")
     return la not in (None, "", "0") and lo not in (None, "", "0")
 
+def parse_rssi(s):
+    """
+    RSSI as int, or None if missing/invalid. Received signal is always negative
+    dBm; WiGLE writes 0 (and occasionally positive values) as a 'no reading'
+    sentinel, so anything >= 0 is treated as missing -- otherwise it both inflates
+    'best signal' and dominates the RSSI-weighted trilateration (weight 10^(0/20)
+    = 1 vs ~1e-4 for -90 dBm).
+    """
+    if s is None:
+        return None
+    s = str(s).strip()
+    if not s or not s.lstrip("-").isdigit():
+        return None
+    v = int(s)
+    return v if v < 0 else None
+
 def estimate_location(sightings):
     """
     RSSI-weighted transmitter-location estimate from many (lat, lon, rssi)
@@ -179,3 +195,122 @@ def estimate_location(sightings):
         "best_rssi": best[2], "best_at": (round(best[0], 6), round(best[1], 6)),
         "spread_km": round(spread, 3),
     }
+
+# --------------------------------------------------- time / trips / bases ----
+import datetime as _dt
+
+def parse_ts(s):
+    """WiGLE FirstSeen -> datetime, or None for blank / 1970 epochs."""
+    if not s or s.startswith("1970"):
+        return None
+    try:
+        return _dt.datetime.strptime(s.strip(), "%Y-%m-%d %H:%M:%S")
+    except (ValueError, AttributeError):
+        return None
+
+def build_trips(rows, gap_min=20):
+    """
+    Order every GPS-fixed observation by time; cut a new trip whenever the gap to
+    the previous observation exceeds gap_min minutes. Returns trips, each a dict
+    with start/end datetimes, centroid (lat,lon), n_obs and the set of MACs seen.
+    A single physical outing = one trip; returning home later = a new trip.
+    """
+    timed = []
+    for r in rows:
+        ts = parse_ts(r.get("FirstSeen"))
+        if ts and has_fix(r):
+            timed.append((ts, r))
+    timed.sort(key=lambda x: x[0])
+    gap = _dt.timedelta(minutes=gap_min)
+    trips, cur, last = [], [], None
+    for ts, r in timed:
+        if last is not None and ts - last > gap:
+            trips.append(cur); cur = []
+        cur.append((ts, r)); last = ts
+    if cur:
+        trips.append(cur)
+    out = []
+    for t in trips:
+        lats = [fpt(r["CurrentLatitude"]) for _, r in t]
+        lons = [fpt(r["CurrentLongitude"]) for _, r in t]
+        out.append({"start": t[0][0], "end": t[-1][0],
+                    "centroid": (sum(lats) / len(lats), sum(lons) / len(lons)),
+                    "n_obs": len(t),
+                    "macs": {r["MAC"].lower() for _, r in t}})
+    return out
+
+def detect_bases(rows, cell_deg=0.0015, merge_km=0.4, min_frac=0.03):
+    """
+    Find the operator's dwell anchors (home, work, regular stops) by GPS density.
+    Bins fixed points into ~150 m cells, then greedily promotes the densest cells
+    to "bases", merging anything within merge_km. Returns a list of
+    {centroid:(lat,lon), obs, frac} sorted by weight. Multiple bases supported.
+    """
+    pts = [(fpt(r["CurrentLatitude"]), fpt(r["CurrentLongitude"]))
+           for r in rows if has_fix(r)]
+    pts = [(la, lo) for la, lo in pts if la is not None and lo is not None]
+    if not pts:
+        return []
+    cells = collections.Counter((round(la / cell_deg), round(lo / cell_deg)) for la, lo in pts)
+    total = len(pts)
+    bases = []
+    for (cy, cx), n in cells.most_common():
+        if n < max(8, total * min_frac):
+            break
+        c = (cy * cell_deg, cx * cell_deg)
+        if any(haversine(c[0], c[1], b["centroid"][0], b["centroid"][1]) < merge_km for b in bases):
+            # fold into the nearest existing base
+            for b in bases:
+                if haversine(c[0], c[1], b["centroid"][0], b["centroid"][1]) < merge_km:
+                    b["obs"] += n; break
+            continue
+        bases.append({"centroid": c, "obs": n})
+    for b in bases:
+        b["frac"] = round(b["obs"] / total, 3)
+        b["centroid"] = (round(b["centroid"][0], 5), round(b["centroid"][1], 5))
+    return sorted(bases, key=lambda b: -b["obs"])
+
+def mac_sightings(rows, types=("WIFI", "BLE", "BT", "LTE")):
+    """
+    Aggregate per-MAC: a representative row (prefers a named one), every
+    (lat,lon,rssi) fix, the timestamps, and best RSSI. The shared substrate for
+    home-base classification and follow-detection.
+    """
+    agg = {}
+    for r in rows:
+        if r.get("Type") not in types:
+            continue
+        m = r["MAC"].lower()
+        d = agg.get(m)
+        if d is None:
+            d = agg[m] = {"mac": m, "type": r.get("Type"), "label": r,
+                          "fixes": [], "ts": [], "best_rssi": -999}
+        if is_named(r) and not is_named(d["label"]):
+            d["label"] = r
+        rv = parse_rssi(r.get("RSSI"))
+        if rv is not None:
+            d["best_rssi"] = max(d["best_rssi"], rv)
+        if has_fix(r):
+            d["fixes"].append((fpt(r["CurrentLatitude"]), fpt(r["CurrentLongitude"]), rv if rv is not None else -999))
+        ts = parse_ts(r.get("FirstSeen"))
+        if ts:
+            d["ts"].append(ts)
+    return agg
+
+# ---------------------------------------------------------- exclusion list ----
+
+def load_exclude(path):
+    """
+    Read a MAC exclusion list (one MAC per line; '#' comments and blanks ignored;
+    inline trailing comments after whitespace allowed). Returns a lowercase set.
+    """
+    macs = set()
+    if not path or not os.path.exists(path):
+        return macs
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if not line:
+                continue
+            macs.add(line.split()[0].strip().lower())
+    return macs

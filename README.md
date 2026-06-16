@@ -36,9 +36,22 @@ self-contained HTML report — **with no third-party dependencies**.
 | `wigle.py map` | GeoJSON + KML (Google Earth) + self-contained Leaflet HTML |
 | `wigle.py db` | Multi-capture SQLite ingest + cross-capture diff |
 | `wigle.py report` | One bundled dark "RF-scope" HTML report (analyze + track + map) |
+| `wigle.py homebase` | Classify emitters OWN/HOME/NEAR_HOME/MOBILE; export an `exclude.txt` |
+| `wigle.py follow` | Deepened tail detection: on-body RSSI, convoys, tracker-RPA, confidence |
+| `wigle.py targets` | Pentest target CSV: per-AP attack vectors + physical recon (Seos/WEP) |
+| `wigle.py brief` | Styled report, `--mode recon` (teardown) or `--mode threat` (red/blue) |
 | `wigle.py all` | report + map + db-ingest in one command |
 
-`wigle_common.py` holds shared helpers; `build_web.py` regenerates the browser app.
+Most tools accept `--exclude exclude.txt` to drop your home-base/own gear (built by
+`homebase`). `wigle_common.py` holds shared helpers; `build_web.py` regenerates the
+browser app.
+
+### Counter-surveillance workflow
+```bash
+python wigle.py homebase capture.csv               # -> home_exclude.txt (review home_devices.csv)
+python wigle.py follow   capture.csv --exclude home_exclude.txt   # who follows you, home removed
+python wigle.py brief    capture.csv --mode threat --exclude home_exclude.txt
+```
 
 ## Quick start
 

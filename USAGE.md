@@ -312,6 +312,77 @@ draw the map; the analysis was done locally before the file was written.)
 
 ---
 
+## Counter-surveillance & threat-intel tools
+
+These four were added to focus on *following detection* and *pentest output*, and
+they all revolve around an **exclusion list** that removes your own/home gear so
+the signal isn't drowned in noise.
+
+### `wigle_homebase.py` — classify emitters & build the exclusion list
+
+Auto-detects your base(s) by GPS density and classifies every emitter:
+`OWN` (your kit, on-body across trips) · `HOME` (at a base) · `NEAR_HOME`
+(neighbours) · `MOBILE` (seen at ≥2 separated places) · `AMBIENT` (passed once).
+
+```powershell
+python wigle.py homebase $csv --out-prefix home
+```
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--home-radius` | `0.075` | km from a base counted as HOME |
+| `--near-radius` | `0.30` | km from a base counted as NEAR_HOME |
+| `--own-rssi` | `-45` | dBm: ≥ this + multi-trip ⇒ OWN / on-body |
+| `--include-near` | (off) | also put NEAR_HOME (neighbours) in the exclusion list |
+| `--out-prefix` | `home` | output name prefix |
+
+**Outputs:** `home_devices.csv` (review this), `home_exclude.txt` (the MAC list —
+pass it to any tool via `--exclude`, or paste into WiGLE's address-exclusion),
+`home_bases.json`.
+
+### `wigle_follow.py` — deepened tail / convoy detection
+
+Removes the exclusion set first, then scores who still travels with you.
+
+```powershell
+python wigle.py follow $csv --exclude home_exclude.txt --min-conf 0.6
+```
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--exclude` | (auto home-base) | MAC list to drop before scoring |
+| `--min-trips` / `--min-places` | `3` / `2` | thresholds to be a candidate |
+| `--min-conf` | `0.0` | only show/append candidates ≥ this confidence |
+| `--append-exclude FILE` | — | append shown MACs to an exclusion file (promote your car etc.) |
+
+Scores **on-body RSSI**, **convoys** (radios that always travel together = one
+vehicle/person), **tracker-RPA** (a BLE address that should rotate but persists),
+and a 0–1 confidence with the reasons listed. Use `--append-exclude` once you've
+confirmed a candidate is your own.
+
+### `wigle_targets.py` — pentest target list
+
+```powershell
+python wigle.py targets $csv --exclude home_exclude.txt --out targets.csv
+```
+Emits `targets.csv`: every attackable AP tagged with vectors — `WEP-crack`,
+`WPS-pixie`, `open-MITM`, `deauth-handshake`, `sae-downgrade`, `default-PSK?` —
+and an ease rating, sorted easy-first. Also prints a physical-recon layer (HID
+Seos door readers + WEP AV/camera bridges with locations). For **authorised**
+testing of networks you own or are scoped to assess.
+
+### `wigle_report2.py` (`brief`) — styled recon / threat reports
+
+```powershell
+python wigle.py brief $csv --mode recon  --exclude home_exclude.txt   # green/cyan teardown
+python wigle.py brief $csv --mode threat --exclude home_exclude.txt   # red/blue threat brief
+```
+Generates the two dark RF-scope designs from live data: `recon` (stat grid,
+signal-mix bars, de-anon, security, BLE zoo, embedded map) and `threat` (home-base
+tell, tail/convoy findings, red↔blue team reads, physical recon, OPSEC leak). The
+embedded map is capped to the strongest ~1000 emitters so it stays smooth on a
+phone. This is in addition to `report` (the quick single-style bundle).
+
+---
+
 ## Running on a phone (Termux) — full step-by-step
 
 The wardrive happens on the phone, so the CSV is already there. With Termux you
